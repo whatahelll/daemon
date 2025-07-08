@@ -908,157 +908,152 @@ class WingsDaemon {
    }
  }
 
- processVariables(template, config) {
-   if (typeof template !== 'string') return template;
-   
-   let result = template;
-   
-   // Processar variáveis do egg
-   if (config.egg && config.egg.variables) {
-     for (const variable of config.egg.variables) {
-       const placeholder = `{{server.build.env.${variable.env_variable}}}`;
-       const value = config.variables && config.variables[variable.env_variable] 
-         ? config.variables[variable.env_variable] 
-         : variable.default_value;
-       
-       result = result.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
-     }
-   }
-   
-   // Variáveis do sistema
-   result = result.replace(/{{server\.build\.default\.port}}/g, config.port || '25565');
-   result = result.replace(/{{SERVER_MEMORY}}/g, (config.plan ? config.plan.ram * 1024 : 1024).toString());
-   result = result.replace(/{{SERVER_JARFILE}}/g, config.variables?.SERVER_JARFILE || 'server.jar');
-   
-   // Variáveis diretas (sem server.build.env)
-   if (config.variables) {
-     for (const [key, value] of Object.entries(config.variables)) {
-       result = result.replace(new RegExp(`{{${key}}}`, 'g'), value);
-     }
-   }
-   
-   return result;
- }
+ // daemon/wings.js - Método processVariables
+processVariables(template, config) {
+  if (typeof template !== 'string') return template;
+  
+  let result = template;
+  
+  // Processar variáveis do egg
+  if (config.egg && config.egg.variables) {
+    for (const variable of config.egg.variables) {
+      const placeholder = `{{${variable.env_variable}}}`;
+      const value = config.variables && config.variables[variable.env_variable] 
+        ? config.variables[variable.env_variable] 
+        : variable.default_value;
+      
+      result = result.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
+    }
+  }
+  
+  // Variáveis do sistema - IMPORTANTE: usar formato {{}} não ${} 
+  result = result.replace(/\{\{SERVER_MEMORY\}\}/g, (config.plan ? config.plan.ram * 1024 : 1024).toString());
+  result = result.replace(/\{\{SERVER_JARFILE\}\}/g, config.variables?.SERVER_JARFILE || 'server.jar');
+  result = result.replace(/\{\{SERVER_PORT\}\}/g, config.port?.toString() || '25565');
+  
+  return result;
+}
 
  async createContainer(serverId, config) {
-   const egg = config.egg;
-   const serverPath = this.getServerPath(serverId);
-   
-   console.log(`🐳 Criando container ${serverId} com egg ${egg.name}`);
-   
-   // Determinar imagem Docker
-   let dockerImage = this.dockerImages.get('java_17'); // Default
-   
-   if (egg.docker_images) {
-     const images = Object.values(egg.docker_images);
-     if (images.length > 0) {
-       // Priorizar Java 17 se disponível, senão usar a primeira
-       if (egg.docker_images["Java 17"]) {
-         dockerImage = egg.docker_images["Java 17"];
-       } else if (egg.docker_images["Java 21"]) {
-         dockerImage = egg.docker_images["Java 21"];
-       } else {
-         dockerImage = images[0];
-       }
-     }
-   }
-   
-   console.log(`🐳 Usando imagem: ${dockerImage}`);
-   
-   // Processar variáveis de ambiente
-   const environment = [];
-   
-   if (egg.variables) {
-     for (const variable of egg.variables) {
-       const value = config.variables && config.variables[variable.env_variable] 
-         ? config.variables[variable.env_variable] 
-         : variable.default_value;
-       
-       environment.push(`${variable.env_variable}=${value}`);
-     }
-   }
-   
-   // Adicionar variáveis padrão do sistema
-   environment.push(`SERVER_PORT=${config.port}`);
-   environment.push(`SERVER_MEMORY=${config.plan ? config.plan.ram * 1024 : 1024}`);
-   environment.push(`P_SERVER_LOCATION=${config.location}`);
-   environment.push(`P_SERVER_UUID=${serverId}`);
-   environment.push(`STARTUP=${egg.startup}`);
-   
-   // Processar comando de startup
-   let startupCommand = egg.startup || 'echo "No startup command defined"';
-   startupCommand = this.processVariables(startupCommand, config);
-   
-   // Determinar portas a expor
-   const exposedPorts = {};
-   const portBindings = {};
-   
-   // Porta principal
-   exposedPorts[`${config.port}/tcp`] = {};
-   exposedPorts[`${config.port}/udp`] = {};
-   portBindings[`${config.port}/tcp`] = [{ HostPort: config.port.toString() }];
-   portBindings[`${config.port}/udp`] = [{ HostPort: config.port.toString() }];
-   
-   // Portas adicionais para alguns jogos
-   if (egg.name.toLowerCase().includes('minecraft')) {
-     // RCON port
-     const rconPort = parseInt(config.port) + 1000;
-     exposedPorts[`${rconPort}/tcp`] = {};
-     portBindings[`${rconPort}/tcp`] = [{ HostPort: rconPort.toString() }];
-   }
-   
-   const containerConfig = {
-     Image: dockerImage,
-     name: `pyro-server-${serverId}`,
-     Env: environment,
-     ExposedPorts: exposedPorts,
-     HostConfig: {
-       PortBindings: portBindings,
-       Memory: config.plan ? config.plan.ram * 1024 * 1024 * 1024 : 2 * 1024 * 1024 * 1024,
-       CpuShares: config.plan ? config.plan.cpu * 1024 : 1024,
-       Binds: [
-         `${serverPath}:/home/container`
-       ],
-       RestartPolicy: {
-         Name: 'unless-stopped'
-       },
-       NetworkMode: 'bridge',
-       ReadonlyRootfs: false,
-       CapDrop: ['ALL'],
-       CapAdd: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'SETGID', 'SETUID'],
-       SecurityOpt: ['no-new-privileges:true']
-     },
-     WorkingDir: '/home/container',
-     AttachStdout: true,
-     AttachStderr: true,
-     Tty: true,
-     User: 'container',
-     Cmd: ['/bin/bash', '-c', `cd /home/container && ${startupCommand}`]
-   };
+  const egg = config.egg;
+  const serverPath = this.getServerPath(serverId);
+  
+  console.log(`🐳 Criando container ${serverId} com egg ${egg.name}`);
+  
+  // Determinar imagem Docker
+  let dockerImage = this.dockerImages.get('java_17'); // Default
+  
+  if (egg.docker_images) {
+    const images = Object.values(egg.docker_images);
+    if (images.length > 0) {
+      if (egg.docker_images["Java 17"]) {
+        dockerImage = egg.docker_images["Java 17"];
+      } else if (egg.docker_images["Java 21"]) {
+        dockerImage = egg.docker_images["Java 21"];
+      } else {
+        dockerImage = images[0];
+      }
+    }
+  }
+  
+  console.log(`🐳 Usando imagem: ${dockerImage}`);
+  
+  // Processar comando de startup
+  let startupCommand = egg.startup || 'echo "No startup command defined"';
+  startupCommand = this.processVariables(startupCommand, config);
+  
+  // Processar variáveis de ambiente
+  const environment = [];
+  
+  // IMPORTANTE: Adicionar variável STARTUP que o entrypoint do Pterodactyl espera
+  environment.push(`STARTUP=${startupCommand}`);
+  
+  if (egg.variables) {
+    for (const variable of egg.variables) {
+      const value = config.variables && config.variables[variable.env_variable] 
+        ? config.variables[variable.env_variable] 
+        : variable.default_value;
+      
+      environment.push(`${variable.env_variable}=${value}`);
+    }
+  }
+  
+  // Adicionar variáveis padrão do sistema
+  environment.push(`SERVER_PORT=${config.port}`);
+  environment.push(`SERVER_MEMORY=${config.plan ? config.plan.ram * 1024 : 1024}`);
+  environment.push(`P_SERVER_LOCATION=${config.location}`);
+  environment.push(`P_SERVER_UUID=${serverId}`);
+  
+  // Determinar portas a expor
+  const exposedPorts = {};
+  const portBindings = {};
+  
+  // Porta principal
+  exposedPorts[`${config.port}/tcp`] = {};
+  exposedPorts[`${config.port}/udp`] = {};
+  portBindings[`${config.port}/tcp`] = [{ HostPort: config.port.toString() }];
+  portBindings[`${config.port}/udp`] = [{ HostPort: config.port.toString() }];
+  
+  // Portas adicionais para alguns jogos
+  if (egg.name.toLowerCase().includes('minecraft')) {
+    const rconPort = parseInt(config.port) + 1000;
+    exposedPorts[`${rconPort}/tcp`] = {};
+    portBindings[`${rconPort}/tcp`] = [{ HostPort: rconPort.toString() }];
+  }
+  
+  const containerConfig = {
+    Image: dockerImage,
+    name: `pyro-server-${serverId}`,
+    Env: environment,
+    ExposedPorts: exposedPorts,
+    HostConfig: {
+      PortBindings: portBindings,
+      Memory: config.plan ? config.plan.ram * 1024 * 1024 * 1024 : 2 * 1024 * 1024 * 1024,
+      CpuShares: config.plan ? config.plan.cpu * 1024 : 1024,
+      Binds: [
+        `${serverPath}:/home/container`
+      ],
+      RestartPolicy: {
+        Name: 'unless-stopped'
+      },
+      NetworkMode: 'bridge',
+      ReadonlyRootfs: false,
+      CapDrop: ['ALL'],
+      CapAdd: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'SETGID', 'SETUID'],
+      SecurityOpt: ['no-new-privileges:true']
+    },
+    WorkingDir: '/home/container',
+    AttachStdout: true,
+    AttachStderr: true,
+    Tty: true,
+    User: 'container', // IMPORTANTE: usar o usuário container
+    // REMOVER o Cmd customizado - deixar o entrypoint padrão do yolk funcionar
+    // O entrypoint padrão vai processar a variável STARTUP
+  };
 
-   // Verificar se a imagem existe
-   try {
-     await this.docker.getImage(dockerImage).inspect();
-     console.log(`✅ Imagem ${dockerImage} já existe`);
-   } catch (error) {
-     console.log(`📥 Fazendo pull da imagem ${dockerImage}...`);
-     this.io.to(serverId).emit('server-log', {
-       timestamp: new Date().toISOString(),
-       level: 'info',
-       message: `Baixando imagem Docker: ${dockerImage}`
-     });
-     
-     try {
-       await this.docker.pull(dockerImage);
-       console.log(`✅ Pull da imagem ${dockerImage} concluído`);
-     } catch (pullError) {
-       console.error(`❌ Erro no pull da imagem ${dockerImage}:`, pullError);
-       throw new Error(`Failed to pull Docker image: ${dockerImage}`);
-     }
-   }
+  // Verificar se a imagem existe
+  try {
+    await this.docker.getImage(dockerImage).inspect();
+    console.log(`✅ Imagem ${dockerImage} já existe`);
+  } catch (error) {
+    console.log(`📥 Fazendo pull da imagem ${dockerImage}...`);
+    this.io.to(serverId).emit('server-log', {
+      timestamp: new Date().toISOString(),
+      level: 'info',
+      message: `Baixando imagem Docker: ${dockerImage}`
+    });
+    
+    try {
+      await this.docker.pull(dockerImage);
+      console.log(`✅ Pull da imagem ${dockerImage} concluído`);
+    } catch (pullError) {
+      console.error(`❌ Erro no pull da imagem ${dockerImage}:`, pullError);
+      throw new Error(`Failed to pull Docker image: ${dockerImage}`);
+    }
+  }
 
-   return await this.docker.createContainer(containerConfig);
- }
+  return await this.docker.createContainer(containerConfig);
+}
 
  async startServer(req, res) {
    const { id: serverId } = req.params;
