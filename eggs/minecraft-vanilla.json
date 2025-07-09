@@ -1,0 +1,234 @@
+{
+  "_comment": "Minecraft Vanilla Server Egg",
+  "meta": {
+    "version": "PTDL_v2",
+    "update_url": null
+  },
+  "exported_at": "2025-01-08T00:00:00+00:00",
+  "uuid": "minecraft-vanilla",
+  "name": "Vanilla Minecraft",
+  "author": "support@pterodactyl.io",
+  "description": "Minecraft Java Edition server. Vanilla Minecraft server jarfile.",
+  "features": [
+    "eula",
+    "java_version",
+    "pid_limit"
+  ],
+  "docker_images": {
+    "Java 8": "ghcr.io/pterodactyl/yolks:java_8",
+    "Java 11": "ghcr.io/pterodactyl/yolks:java_11",
+    "Java 16": "ghcr.io/pterodactyl/yolks:java_16", 
+    "Java 17": "ghcr.io/pterodactyl/yolks:java_17",
+    "Java 21": "ghcr.io/pterodactyl/yolks:java_21"
+  },
+  "file_denylist": [],
+  "startup": "java -Xms128M -Xmx{{SERVER_MEMORY}}M -Dterminal.jline=false -Dterminal.ansi=true -jar {{SERVER_JARFILE}}",
+  "config": {
+    "files": {
+      "server.properties": {
+        "parser": "properties",
+        "find": {
+          "server-port": "{{server.build.default.port}}",
+          "enable-query": "true",
+          "query.port": "{{server.build.default.port}}",
+          "max-players": "{{server.build.env.MAX_PLAYERS}}",
+          "motd": "{{server.build.env.MOTD}}",
+          "allow-flight": "{{server.build.env.ALLOW_FLIGHT}}",
+          "allow-nether": "{{server.build.env.ALLOW_NETHER}}",
+          "view-distance": "{{server.build.env.VIEW_DISTANCE}}",
+          "seed": "{{server.build.env.SEED}}",
+          "gamemode": "{{server.build.env.GAMEMODE}}",
+          "force-gamemode": "{{server.build.env.FORCE_GAMEMODE}}",
+          "hardcore": "{{server.build.env.HARDCORE}}",
+          "white-list": "{{server.build.env.WHITELIST}}",
+          "enable-rcon": "true",
+          "rcon.port": "{{server.build.default.port}}",
+          "rcon.password": "{{server.build.env.RCON_PASSWORD}}"
+        }
+      },
+      "eula.txt": {
+        "parser": "file",
+        "find": {
+          "eula": "{{server.build.env.EULA}}"
+        }
+      }
+    },
+    "startup": {
+      "done": ")! For help, type \"help\""
+    },
+    "stop": "stop",
+    "logs": {
+      "custom": false,
+      "location": "logs/latest.log"
+    }
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/bash\n# Minecraft Vanilla Installation Script\ncd /mnt/server\n\n# Update packages\napt update\napt install -y curl jq\n\n# Create eula.txt\necho \"eula=${EULA}\" > eula.txt\n\n# Download server jar based on version\nif [ \"${MINECRAFT_VERSION}\" == \"latest\" ] || [ \"${MINECRAFT_VERSION}\" == \"\" ]; then\n    echo \"Downloading latest Minecraft server...\"\n    DOWNLOAD_URL=$(curl -sSL https://launchermeta.mojang.com/mc/game/version_manifest.json | jq -r '.latest.release as $latest | .versions[] | select(.id == $latest) | .url')\n    DOWNLOAD_URL=$(curl -sSL $DOWNLOAD_URL | jq -r '.downloads.server.url')\nelse\n    echo \"Downloading Minecraft ${MINECRAFT_VERSION}...\"\n    DOWNLOAD_URL=$(curl -sSL https://launchermeta.mojang.com/mc/game/version_manifest.json | jq -r --arg VERSION \"$MINECRAFT_VERSION\" '.versions[] | select(.id == $VERSION) | .url')\n    DOWNLOAD_URL=$(curl -sSL $DOWNLOAD_URL | jq -r '.downloads.server.url')\nfi\n\nif [ -z \"$DOWNLOAD_URL\" ]; then\n    echo \"Error: Could not find download URL for version ${MINECRAFT_VERSION}\"\n    exit 1\nfi\n\necho \"Download URL: $DOWNLOAD_URL\"\ncurl -o ${SERVER_JARFILE} \"$DOWNLOAD_URL\"\n\nif [ ! -f \"${SERVER_JARFILE}\" ]; then\n    echo \"Error: Failed to download server jar\"\n    exit 1\nfi\n\necho \"Installation completed!\"",
+      "container": "ghcr.io/pterodactyl/installers:debian",
+      "entrypoint": "bash"
+    }
+  },
+  "variables": [
+    {
+      "name": "Server Jar File",
+      "description": "The name of the server jarfile to run the server with.",
+      "env_variable": "SERVER_JARFILE",
+      "default_value": "server.jar",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|max:20",
+      "field_type": "text"
+    },
+    {
+      "name": "Minecraft Version",
+      "description": "The version of Minecraft to download. Leave at latest to always get the newest version.",
+      "env_variable": "MINECRAFT_VERSION",
+      "default_value": "latest",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|max:20",
+      "field_type": "text"
+    },
+    {
+      "name": "Server Memory",
+      "description": "The maximum amount of memory to allow for the Minecraft server to use.",
+      "env_variable": "SERVER_MEMORY",
+      "default_value": "1024",
+      "user_viewable": false,
+      "user_editable": false,
+      "rules": "required|numeric|min:128",
+      "field_type": "text"
+    },
+    {
+      "name": "EULA",
+      "description": "Do you agree to the Minecraft EULA?",
+      "env_variable": "EULA",
+      "default_value": "true",
+      "user_viewable": false,
+      "user_editable": false,
+      "rules": "required|string|in:true",
+      "field_type": "text"
+    },
+    {
+      "name": "Maximum Players",
+      "description": "The maximum amount of players that can join the server at one time.",
+      "env_variable": "MAX_PLAYERS",
+      "default_value": "20",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|numeric|min:1",
+      "field_type": "text"
+    },
+    {
+      "name": "Server Port",
+      "description": "The port to bind the server to.",
+      "env_variable": "SERVER_PORT",
+      "default_value": "25565",
+      "user_viewable": true,
+      "user_editable": false,
+      "rules": "required|numeric|min:1024|max:65535",
+      "field_type": "text"
+    },
+    {
+      "name": "MOTD",
+      "description": "This is the message that is displayed in the server list of the client, below the name.",
+      "env_variable": "MOTD",
+      "default_value": "A Minecraft Server powered by Pyro",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|max:59",
+      "field_type": "text"
+    },
+    {
+      "name": "Allow Flight",
+      "description": "Allows users to use flight on your server while in Survival mode, if they have a mod that provides flight installed.",
+      "env_variable": "ALLOW_FLIGHT",
+      "default_value": "false",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|in:true,false",
+      "field_type": "text"
+    },
+    {
+      "name": "Allow Nether",
+      "description": "Allows players to travel to the Nether.",
+      "env_variable": "ALLOW_NETHER",
+      "default_value": "true",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|in:true,false",
+      "field_type": "text"
+    },
+    {
+      "name": "View Distance",
+      "description": "Sets the amount of world data the server sends the client, measured in chunks in each direction of the player (radius, not diameter).",
+      "env_variable": "VIEW_DISTANCE",
+      "default_value": "10",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|numeric|min:3|max:15",
+      "field_type": "text"
+    },
+    {
+      "name": "Seed",
+      "description": "Add a seed for your world, as for vanilla Minecraft.",
+      "env_variable": "SEED",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:20",
+      "field_type": "text"
+    },
+    {
+      "name": "Game Mode",
+      "description": "Defines the mode of gameplay.",
+      "env_variable": "GAMEMODE",
+      "default_value": "survival",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|in:survival,creative,adventure,spectator",
+      "field_type": "text"
+    },
+    {
+      "name": "Force Gamemode",
+      "description": "Forces players to join in the default game mode.",
+      "env_variable": "FORCE_GAMEMODE",
+      "default_value": "false",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|in:true,false",
+      "field_type": "text"
+    },
+    {
+      "name": "Hardcore",
+      "description": "If set to true, server difficulty is ignored and set to hard and players are set to spectator mode if they die.",
+      "env_variable": "HARDCORE",
+      "default_value": "false",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|in:true,false",
+      "field_type": "text"
+    },
+    {
+      "name": "Whitelist",
+      "description": "Enables a whitelist on the server.",
+      "env_variable": "WHITELIST",
+      "default_value": "false",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|in:true,false",
+      "field_type": "text"
+    },
+    {
+      "name": "RCON Password",
+      "description": "A password to use for RCON connections.",
+      "env_variable": "RCON_PASSWORD",
+      "default_value": "pyromc",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|max:20",
+      "field_type": "text"
+    }
+  ]
+}
