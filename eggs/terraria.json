@@ -1,5 +1,5 @@
 {
-  "_comment": "Terraria Vanilla Server - Baseado no Egg Oficial",
+  "_comment": "Terraria Vanilla Server - Otimizado para Ubuntu",
   "meta": {
     "version": "PTDL_v2",
     "update_url": null
@@ -11,7 +11,7 @@
   "description": "Dig, fight, explore, build! Nothing is impossible in this action-packed adventure game.",
   "features": null,
   "docker_images": {
-    "Debian": "ghcr.io/parkervcp/yolks:debian"
+    "Ubuntu": "ghcr.io/pterodactyl/yolks:debian"
   },
   "file_denylist": [],
   "startup": "./TerrariaServer.bin.x86_64 -config serverconfig.txt",
@@ -29,8 +29,7 @@
           "maxplayers": "{{MAX_PLAYERS}}",
           "motd": "{{SERVER_MOTD}}",
           "seed": "{{WORLD_SEED}}",
-          "password": "{{PASSWORD}}",
-          "npcstream": "{{NPCSTREAM}}"
+          "password": "{{PASSWORD}}"
         }
       }
     },
@@ -42,15 +41,15 @@
   },
   "scripts": {
     "installation": {
-      "script": "#!/bin/bash\n# Terraria Vanilla Installation Script\n#\n# Server Files: /mnt/server\n\necho \"📦 Installing Terraria server...\"\n\n## Install packages\napt update\napt install -y curl wget file unzip jq\n\nDOWNLOAD_LINK=invalid\n\nmkdir -p /mnt/server/\ncd /mnt/server/\n\necho \"🔍 Determining Terraria version to download...\"\n\nif [ \"${TERRARIA_VERSION}\" == \"latest\" ] || [ \"${TERRARIA_VERSION}\" == \"\" ] ; then\n    echo \"📥 Getting latest Terraria version...\"\n    V=$(curl -sSL https://terraria.org/api/get/dedicated-servers-names | jq -r .[] | head -1)\n    DOWNLOAD_LINK=\"https://terraria.org/api/download/pc-dedicated-server/${V}\"\n    echo \"📋 Latest version: ${V}\"\nelse\n    echo \"📥 Getting specific Terraria version: ${TERRARIA_VERSION}\"\n    CLEAN_VERSION=$(echo ${TERRARIA_VERSION} | sed 's/\\.//g')\n    DOWNLOAD_LINK=$(curl -sSL https://terraria.wiki.gg/wiki/Server#Downloads | grep '>Terraria Server ' | grep -Eoi '<a [^>]+>' | grep -Eo 'href=\"[^\"]+\"' | grep -Eo '(http|https)://[^\"]+' | grep \"${CLEAN_VERSION}\" | cut -d'?' -f1)\nfi \n\necho \"🔗 Download link: ${DOWNLOAD_LINK}\"\n\n## Validate download URL\nif [ ! -z \"${DOWNLOAD_LINK}\" ]; then \n    if curl --output /dev/null --silent --head --fail ${DOWNLOAD_LINK}; then\n        echo \"✅ Download link is valid\"\n    else        \n        echo \"❌ Download link is invalid, exiting\"\n        exit 2\n    fi\nelse\n    echo \"❌ Could not determine download link\"\n    exit 2\nfi\n\nCLEAN_VERSION=$(echo ${DOWNLOAD_LINK##*/} | cut -d'-' -f3 | cut -d'.' -f1)\n\necho \"📥 Downloading Terraria server files...\"\ncurl -sSL ${DOWNLOAD_LINK} -o ${DOWNLOAD_LINK##*/}\n\nif [ ! -f \"${DOWNLOAD_LINK##*/}\" ]; then\n    echo \"❌ Download failed\"\n    exit 1\nfi\n\necho \"📦 Extracting server files...\"\nunzip ${DOWNLOAD_LINK##*/}\n\necho \"📁 Moving files to correct location...\"\ncp -R ${CLEAN_VERSION}/Linux/* ./\nchmod +x TerrariaServer.bin.x86_64\n\necho \"🧹 Cleaning up temporary files...\"\nrm -rf ${CLEAN_VERSION} ${DOWNLOAD_LINK##*/}\n\necho \"⚙️ Generating default server configuration...\"\ncat <<EOF > serverconfig.txt\nworldpath=/home/container/saves/Worlds\nworldname={{WORLD_NAME}}\nworld=/home/container/saves/Worlds/{{WORLD_NAME}}.wld\ndifficulty={{WORLD_DIFFICULTY}}\nautocreate={{WORLD_SIZE}}\nport={{SERVER_PORT}}\nmaxplayers={{MAX_PLAYERS}}\nmotd={{SERVER_MOTD}}\nseed={{WORLD_SEED}}\npassword={{PASSWORD}}\nnpcstream={{NPCSTREAM}}\nEOF\n\necho \"📁 Creating worlds directory...\"\nmkdir -p /mnt/server/saves/Worlds\n\necho \"✅ Terraria server installation completed!\"\necho \"🎮 Server ready to start on port {{SERVER_PORT}}\"\necho \"👥 Max players: {{MAX_PLAYERS}}\"\necho \"🌍 World: {{WORLD_NAME}} (Size: {{WORLD_SIZE}}, Difficulty: {{WORLD_DIFFICULTY}})\"\n\nif [ -f \"TerrariaServer.bin.x86_64\" ]; then\n    echo \"✅ Server executable found and ready\"\nelse\n    echo \"❌ Warning: Server executable not found!\"\n    ls -la\nfi",
-      "container": "ghcr.io/parkervcp/installers:debian",
+      "script": "#!/bin/bash\n# Terraria Installation Script para Ubuntu\nset -e\n\necho \"🐧 Instalando servidor Terraria no Ubuntu...\"\n\n# Atualizar repositórios e instalar dependências\necho \"📦 Instalando dependências...\"\nexport DEBIAN_FRONTEND=noninteractive\napt-get update -qq\napt-get install -y -qq curl wget unzip jq ca-certificates > /dev/null\n\ncd /mnt/server\n\necho \"🔍 Determinando versão do Terraria...\"\n\n# URLs conhecidas funcionais\nif [ \"${TERRARIA_VERSION}\" == \"latest\" ] || [ \"${TERRARIA_VERSION}\" == \"\" ] ; then\n    echo \"📥 Baixando Terraria versão mais recente (1.4.4.9)...\"\n    DOWNLOAD_URL=\"https://terraria.org/api/download/pc-dedicated-server/terraria-server-1449.zip\"\n    VERSION_DIR=\"1449\"\nelse\n    echo \"📥 Baixando Terraria versão: ${TERRARIA_VERSION}\"\n    CLEAN_VERSION=$(echo ${TERRARIA_VERSION} | sed 's/\\.//g')\n    DOWNLOAD_URL=\"https://terraria.org/api/download/pc-dedicated-server/terraria-server-${CLEAN_VERSION}.zip\"\n    VERSION_DIR=\"${CLEAN_VERSION}\"\nfi\n\necho \"🔗 URL: ${DOWNLOAD_URL}\"\n\n# Download com retry\necho \"📥 Fazendo download do servidor...\"\nfor i in {1..3}; do\n    if wget -q --show-progress \"${DOWNLOAD_URL}\" -O terraria-server.zip; then\n        echo \"✅ Download concluído\"\n        break\n    else\n        echo \"❌ Tentativa ${i}/3 falhou\"\n        if [ $i -eq 3 ]; then\n            echo \"❌ Todas as tentativas de download falharam\"\n            exit 1\n        fi\n        sleep 2\n    fi\ndone\n\n# Verificar se o arquivo foi baixado\nif [ ! -f \"terraria-server.zip\" ]; then\n    echo \"❌ Arquivo não foi baixado\"\n    exit 1\nfi\n\necho \"📁 Arquivo baixado: $(ls -lh terraria-server.zip)\"\n\n# Extrair arquivo\necho \"📦 Extraindo servidor Terraria...\"\nunzip -q terraria-server.zip\n\n# Encontrar diretório extraído\necho \"🔍 Procurando diretório extraído...\"\nEXTRACTED_DIR=$(find . -maxdepth 1 -type d -name \"*[0-9]*\" | head -1)\n\nif [ -z \"$EXTRACTED_DIR\" ]; then\n    echo \"❌ Diretório extraído não encontrado. Conteúdo atual:\"\n    ls -la\n    exit 1\nfi\n\necho \"📂 Diretório encontrado: $EXTRACTED_DIR\"\necho \"📋 Conteúdo do diretório:\"\nls -la \"$EXTRACTED_DIR\"\n\n# Verificar se existe pasta Linux\nif [ ! -d \"${EXTRACTED_DIR}/Linux\" ]; then\n    echo \"❌ Pasta Linux não encontrada em ${EXTRACTED_DIR}\"\n    echo \"📋 Conteúdo disponível:\"\n    ls -la \"$EXTRACTED_DIR\"\n    exit 1\nfi\n\necho \"📂 Conteúdo da pasta Linux:\"\nls -la \"${EXTRACTED_DIR}/Linux\"\n\n# Copiar arquivos Linux\necho \"📁 Copiando arquivos do servidor...\"\ncp -r \"${EXTRACTED_DIR}/Linux/\"* ./\n\n# Verificar se o executável foi copiado\nif [ ! -f \"TerrariaServer.bin.x86_64\" ]; then\n    echo \"❌ Executável TerrariaServer.bin.x86_64 não encontrado após cópia\"\n    echo \"📋 Arquivos disponíveis:\"\n    ls -la\n    exit 1\nfi\n\n# Configurar permissões\necho \"🔧 Configurando permissões...\"\nchmod +x TerrariaServer.bin.x86_64\nchmod +x TerrariaServer 2>/dev/null || true\n\necho \"✅ Executável configurado:\"\nls -la TerrariaServer.bin.x86_64\n\n# Limpeza\necho \"🧹 Limpando arquivos temporários...\"\nrm -rf \"$EXTRACTED_DIR\" terraria-server.zip\n\n# Criar configuração do servidor\necho \"⚙️ Criando configuração do servidor...\"\ncat > serverconfig.txt << EOF\nworldpath=/home/container/saves/Worlds\nworldname=${WORLD_NAME}\nworld=/home/container/saves/Worlds/${WORLD_NAME}.wld\ndifficulty=${WORLD_DIFFICULTY}\nautocreate=${WORLD_SIZE}\nport=${SERVER_PORT}\nmaxplayers=${MAX_PLAYERS}\nmotd=${SERVER_MOTD}\nseed=${WORLD_SEED}\npassword=${PASSWORD}\nEOF\n\necho \"📁 Criando estrutura de diretórios...\"\nmkdir -p saves/Worlds\nchown -R 1000:1000 saves/ 2>/dev/null || true\n\necho \"📋 Configuração criada:\"\ncat serverconfig.txt\n\n# Verificação final\necho \"\\n🔍 Verificação final:\"\necho \"📁 Arquivos no diretório:\"\nls -la\n\necho \"🔧 Testando executável:\"\nif ./TerrariaServer.bin.x86_64 --help 2>/dev/null || true; then\n    echo \"✅ Executável funcional\"\nelse\n    echo \"⚠️ Executável pode precisar de bibliotecas adicionais\"\n    echo \"📋 Verificando dependências:\"\n    ldd TerrariaServer.bin.x86_64 2>/dev/null || echo \"Comando ldd não disponível\"\nfi\n\necho \"\\n🎉 Instalação do Terraria concluída com sucesso!\"\necho \"🎮 Servidor pronto para iniciar na porta ${SERVER_PORT}\"\necho \"👥 Máximo de jogadores: ${MAX_PLAYERS}\"\necho \"🌍 Mundo: ${WORLD_NAME} (Tamanho: ${WORLD_SIZE}, Dificuldade: ${WORLD_DIFFICULTY})\"\necho \"📍 Localização do mundo: /home/container/saves/Worlds/\"",
+      "container": "ghcr.io/pterodactyl/installers:debian",
       "entrypoint": "bash"
     }
   },
   "variables": [
     {
       "name": "Terraria Version",
-      "description": "The version of Terraria server to install. Use 'latest' for the newest version or specify version like '1.4.4.9'",
+      "description": "The version of Terraria server to install. Use 'latest' for the newest version",
       "env_variable": "TERRARIA_VERSION",
       "default_value": "latest",
       "user_viewable": true,
@@ -136,16 +135,6 @@
       "user_viewable": true,
       "user_editable": true,
       "rules": "nullable|string|max:20",
-      "field_type": "text"
-    },
-    {
-      "name": "NPC Stream",
-      "description": "Reduces enemy skipping but increases bandwidth usage. Lower numbers = less skipping, more data. 0 = off.",
-      "env_variable": "NPCSTREAM",
-      "default_value": "0",
-      "user_viewable": true,
-      "user_editable": true,
-      "rules": "required|int|between:0,60",
       "field_type": "text"
     }
   ]
