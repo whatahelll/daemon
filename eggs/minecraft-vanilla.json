@@ -15,14 +15,14 @@
     "pid_limit"
   ],
   "docker_images": {
-    "Java 8": "ghcr.io/pterodactyl/yolks:java_8",
-    "Java 11": "ghcr.io/pterodactyl/yolks:java_11",
-    "Java 16": "ghcr.io/pterodactyl/yolks:java_16", 
+    "Java 21": "ghcr.io/pterodactyl/yolks:java_21",
     "Java 17": "ghcr.io/pterodactyl/yolks:java_17",
-    "Java 21": "ghcr.io/pterodactyl/yolks:java_21"
+    "Java 16": "ghcr.io/pterodactyl/yolks:java_16",
+    "Java 11": "ghcr.io/pterodactyl/yolks:java_11",
+    "Java 8": "ghcr.io/pterodactyl/yolks:java_8"
   },
   "file_denylist": [],
-  "startup": "java -Xms128M -Xmx{{SERVER_MEMORY}}M -Dterminal.jline=false -Dterminal.ansi=true -jar {{SERVER_JARFILE}}",
+  "startup": "java -Xms128M -Xmx{{SERVER_MEMORY}}M -Dterminal.jline=false -Dterminal.ansi=true -jar {{SERVER_JARFILE}} nogui",
   "config": {
     "files": {
       "server.properties": {
@@ -43,7 +43,9 @@
           "white-list": "{{server.build.env.WHITELIST}}",
           "enable-rcon": "true",
           "rcon.port": "{{server.build.default.port}}",
-          "rcon.password": "{{server.build.env.RCON_PASSWORD}}"
+          "rcon.password": "{{server.build.env.RCON_PASSWORD}}",
+          "online-mode": "{{server.build.env.ONLINE_MODE}}",
+          "difficulty": "{{server.build.env.DIFFICULTY}}"
         }
       },
       "eula.txt": {
@@ -64,8 +66,7 @@
   },
   "scripts": {
     "installation": {
-      "script": "#!/bin/bash\n# Minecraft Vanilla Installation Script\ncd /mnt/server\n\n# Update packages\napt update\napt install -y curl jq\n\n# Create eula.txt\necho \"eula=${EULA}\" > eula.txt\n\n# Download server jar based on version\nif [ \"${MINECRAFT_VERSION}\" == \"latest\" ] || [ \"${MINECRAFT_VERSION}\" == \"\" ]; then\n    echo \"Downloading latest Minecraft server...\"\n    DOWNLOAD_URL=$(curl -sSL https://launchermeta.mojang.com/mc/game/version_manifest.json | jq -r '.latest.release as $latest | .versions[] | select(.id == $latest) | .url')\n    DOWNLOAD_URL=$(curl -sSL $DOWNLOAD_URL | jq -r '.downloads.server.url')\nelse\n    echo \"Downloading Minecraft ${MINECRAFT_VERSION}...\"\n    DOWNLOAD_URL=$(curl -sSL https://launchermeta.mojang.com/mc/game/version_manifest.json | jq -r --arg VERSION \"$MINECRAFT_VERSION\" '.versions[] | select(.id == $VERSION) | .url')\n    DOWNLOAD_URL=$(curl -sSL $DOWNLOAD_URL | jq -r '.downloads.server.url')\nfi\n\nif [ -z \"$DOWNLOAD_URL\" ]; then\n    echo \"Error: Could not find download URL for version ${MINECRAFT_VERSION}\"\n    exit 1\nfi\n\necho \"Download URL: $DOWNLOAD_URL\"\ncurl -o ${SERVER_JARFILE} \"$DOWNLOAD_URL\"\n\nif [ ! -f \"${SERVER_JARFILE}\" ]; then\n    echo \"Error: Failed to download server jar\"\n    exit 1\nfi\n\necho \"Installation completed!\"",
-      "container": "ghcr.io/pterodactyl/installers:debian",
+      "script": "#!/bin/bash\n# Minecraft Vanilla Installation Script\ncd /mnt/server\n\n# Update packages\napt update\napt install -y curl jq\n\n# Create eula.txt\necho \"eula=${EULA}\" > eula.txt\n\n# Download server jar based on vers>      "container": "ghcr.io/pterodactyl/installers:debian",
       "entrypoint": "bash"
     }
   },
@@ -134,7 +135,7 @@
       "name": "MOTD",
       "description": "This is the message that is displayed in the server list of the client, below the name.",
       "env_variable": "MOTD",
-      "default_value": "A Minecraft Server powered by Pyro",
+      "default_value": "A Pyro Minecraft Server",
       "user_viewable": true,
       "user_editable": true,
       "rules": "required|string|max:59",
@@ -156,7 +157,7 @@
       "env_variable": "ALLOW_NETHER",
       "default_value": "true",
       "user_viewable": true,
-      "user_editable": true,
+      user_editable": true,
       "rules": "required|string|in:true,false",
       "field_type": "text"
     },
@@ -221,10 +222,30 @@
       "field_type": "text"
     },
     {
+      "name": "Online Mode",
+      "description": "Enable Minecraft account verification.",
+      "env_variable": "ONLINE_MODE",
+      "default_value": "true",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|in:true,false",
+      "field_type": "text"
+    },
+    {
+      "name": "Difficulty",
+      "description": "Sets the server difficulty.",
+      "env_variable": "DIFFICULTY",
+      "default_value": "normal",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|in:peaceful,easy,normal,hard",
+      "field_type": "text"
+    },
+    {
       "name": "RCON Password",
       "description": "A password to use for RCON connections.",
       "env_variable": "RCON_PASSWORD",
-      "default_value": "pyromc",
+      "default_value": "pyromc2025",
       "user_viewable": true,
       "user_editable": true,
       "rules": "required|string|max:20",
