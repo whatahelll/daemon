@@ -66,7 +66,8 @@
   },
   "scripts": {
     "installation": {
-      "script": "#!/bin/bash\n# Minecraft Vanilla Installation Script\ncd /mnt/server\n\n# Update packages\napt update\napt install -y curl jq\n\n# Create eula.txt\necho \"eula=${EULA}\" > eula.txt\n\n# Download server jar based on vers>      "container": "ghcr.io/pterodactyl/installers:debian",
+      "script": "#!/bin/bash\n# Minecraft Vanilla Installation Script\ncd /mnt/server\n\n# Update packages\napt update\napt install -y curl jq\n\n# Create eula.txt\necho \"eula=${EULA}\" > eula.txt\n\n# Download server jar based on version\nif [ \"${MINECRAFT_VERSION}\" == \"latest\" ]; then\n    echo \"Downloading latest Minecraft server...\"\n    LATEST_VERSION=$(curl -s https://launchermeta.mojang.com/mc/game/version_manifest.json | jq -r '.latest.release')\n    VERSION_URL=$(curl -s https://launchermeta.mojang.com/mc/game/version_manifest.json | jq -r \".versions[] | select(.id==\\\"$LATEST_VERSION\\\") | .url\")\n    DOWNLOAD_URL=$(curl -s $VERSION_URL | jq -r '.downloads.server.url')\nelse\n    echo \"Downloading Minecraft server version ${MINECRAFT_VERSION}...\"\n    VERSION_URL=$(curl -s https://launchermeta.mojang.com/mc/game/version_manifest.json | jq -r \".versions[] | select(.id==\\\"${MINECRAFT_VERSION}\\\") | .url\")\n    if [ \"$VERSION_URL\" == \"null\" ]; then\n        echo \"Version ${MINECRAFT_VERSION} not found!\"\n        exit 1\n    fi\n    DOWNLOAD_URL=$(curl -s $VERSION_URL | jq -r '.downloads.server.url')\nfi\n\necho \"Downloading from: $DOWNLOAD_URL\"\nwget -O ${SERVER_JARFILE} $DOWNLOAD_URL\n\nif [ ! -f ${SERVER_JARFILE} ]; then\n    echo \"Failed to download server jar!\"\n    exit 1\nfi\n\necho \"Minecraft server installation completed!\"",
+      "container": "ghcr.io/pterodactyl/installers:debian",
       "entrypoint": "bash"
     }
   },
@@ -157,7 +158,7 @@
       "env_variable": "ALLOW_NETHER",
       "default_value": "true",
       "user_viewable": true,
-      user_editable": true,
+      "user_editable": true,
       "rules": "required|string|in:true,false",
       "field_type": "text"
     },
