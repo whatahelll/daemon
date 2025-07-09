@@ -1,0 +1,167 @@
+{
+  "_comment": "Terraria Dedicated Server",
+  "meta": {
+    "version": "PTDL_v2",
+    "update_url": null
+  },
+  "exported_at": "2025-01-09T00:00:00+00:00",
+  "uuid": "terraria",
+  "name": "Terraria",
+  "author": "support@pyro.host",
+  "description": "Terraria dedicated server with TShock mod support",
+  "features": [
+    "pid_limit"
+  ],
+  "docker_images": {
+    ".NET 8": "ghcr.io/pterodactyl/yolks:dotnet_8",
+    ".NET 7": "ghcr.io/pterodactyl/yolks:dotnet_7"
+  },
+  "file_denylist": [],
+  "startup": "./TerrariaServer.bin.x86_64 -config serverconfig.txt -port {{SERVER_PORT}} -maxplayers {{MAX_PLAYERS}} -world {{WORLD_PATH}} -worldname \"{{WORLD_NAME}}\" -password \"{{SERVER_PASSWORD}}\" -motd \"{{SERVER_MOTD}}\" -lang {{LANGUAGE}} -autocreate {{WORLD_SIZE}} -difficulty {{DIFFICULTY}} -seed \"{{WORLD_SEED}}\"",
+  "config": {
+    "files": {
+      "serverconfig.txt": {
+        "parser": "file",
+        "find": {
+          "world": "{{WORLD_PATH}}",
+          "port": "{{SERVER_PORT}}",
+          "maxplayers": "{{MAX_PLAYERS}}",
+          "password": "{{SERVER_PASSWORD}}",
+          "motd": "{{SERVER_MOTD}}",
+          "worldname": "{{WORLD_NAME}}",
+          "autocreate": "{{WORLD_SIZE}}",
+          "difficulty": "{{DIFFICULTY}}",
+          "seed": "{{WORLD_SEED}}",
+          "language": "{{LANGUAGE}}"
+        }
+      }
+    },
+    "startup": {
+      "done": "Server started"
+    },
+    "stop": "exit",
+    "logs": {
+      "custom": false,
+      "location": "ServerLog.txt"
+    }
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/bash\ncd /mnt/server\n\necho \"📥 Installing Terraria server...\"\n\n# Update packages\napt update\napt install -y curl unzip wget jq\n\n# Get latest Terraria version\necho \"🔍 Finding latest Terraria version...\"\nLATEST_VERSION=$(curl -sSL \"https://api.github.com/repos/Pryaxis/TShock/releases/latest\" | jq -r '.tag_name' | sed 's/v//')\necho \"📦 Latest version: $LATEST_VERSION\"\n\n# Download TShock (more stable than vanilla)\nif [ \"${USE_TSHOCK}\" == \"true\" ]; then\n    echo \"📥 Downloading TShock $LATEST_VERSION...\"\n    DOWNLOAD_URL=\"https://github.com/Pryaxis/TShock/releases/download/v${LATEST_VERSION}/TShock-${LATEST_VERSION}-linux-x64-Release.zip\"\n    curl -L -o tshock.zip \"$DOWNLOAD_URL\"\n    \n    echo \"📦 Extracting TShock...\"\n    unzip -o tshock.zip\n    rm tshock.zip\n    \n    chmod +x TerrariaServer.bin.x86_64\n    \n    echo \"🔧 TShock installed successfully!\"\nelse\n    echo \"📥 Downloading Vanilla Terraria server...\"\n    # Fallback to vanilla server if needed\n    VANILLA_URL=\"https://terraria.org/api/download/pc-dedicated-server/terraria-server-1449.zip\"\n    curl -L -o terraria.zip \"$VANILLA_URL\"\n    \n    echo \"📦 Extracting Terraria server...\"\n    unzip -o terraria.zip\n    mv */Linux/* .\n    rm -rf terraria.zip */\n    \n    chmod +x TerrariaServer.bin.x86_64\n    \n    echo \"🔧 Vanilla Terraria server installed!\"\nfi\n\n# Create default server config\necho \"⚙️ Creating server configuration...\"\ncat > serverconfig.txt << EOF\n#This is an example config file for the Terraria server.\n#Here you will find some of the most important settings you may want to change.\n\n#The following is a list of available command line parameters:\n#-config <config file>          - Specifies the configuration file to use.\n#-port <port number>            - Specifies the port to listen on.\n#-players <max players>         - Specifies the maximum players.\n#-pass <password>               - Specifies the server password.\n#-world <world file>            - Specifies the world file.\n#-autocreate <#>                - Creates a world if none is found. World size is specified by: 1(small), 2(medium), and 3(large).\n#-banlist <path>                - Specifies the location of the banlist. Defaults to \\\"banlist.txt\\\" in the working directory.\n#-worldname <world name>        - Specifies the name of the world when using -autocreate.\n#-secure                        - Adds addition cheat protection to the server.\n#-noupnp                        - Disables automatic universal plug and play.\n#-steam                         - Enables Steam support.\n#-lobby <friends> or <private>  - Allows friends to join the server or sets it to private if Steam is enabled.\n#-ip <ip address>              - Sets the IP address for the server to use. If no IP address is given then the server will use all available IPs.\n#-forcepriority <priority>      - Sets the Windows process priority to either \\\"normal\\\", \\\"high\\\", or \\\"realtime\\\".\n#-disableannouncementbox        - Disables the announcement box.\n#-announcementboxrange <number> - Sets the announcement box range in pixels.\n#-seed <seed>                   - Specifies the world seed when using -autocreate\n\nworld={{WORLD_PATH}}\nport={{SERVER_PORT}}\nmaxplayers={{MAX_PLAYERS}}\npassword={{SERVER_PASSWORD}}\nmotd={{SERVER_MOTD}}\nworldname={{WORLD_NAME}}\nautocreate={{WORLD_SIZE}}\ndifficulty={{DIFFICULTY}}\nseed={{WORLD_SEED}}\nlanguage={{LANGUAGE}}\nsecure=1\nnoupnp=1\nEOF\n\n# Create worlds directory\nmkdir -p worlds\n\necho \"✅ Terraria server installation completed!\"\necho \"🌍 World will be created automatically on first start\"\necho \"🎮 Server ready to start!\"\necho \"📊 Server will run on port ${SERVER_PORT}\"\necho \"👥 Max players: ${MAX_PLAYERS}\"\necho \"🌍 World: ${WORLD_NAME} (${WORLD_SIZE})\"\n\nif [ \"${USE_TSHOCK}\" == \"true\" ]; then\n    echo \"🔧 TShock features enabled:\"\n    echo \"   - Advanced admin commands\"\n    echo \"   - Player permissions\"\n    echo \"   - Plugin support\"\n    echo \"   - Anti-cheat protection\"\nfi",
+      "container": "ghcr.io/pterodactyl/installers:debian",
+      "entrypoint": "bash"
+    }
+  },
+  "variables": [
+    {
+      "name": "Use TShock",
+      "description": "Use TShock server (recommended) instead of vanilla Terraria server. Provides admin commands, permissions, and anti-cheat.",
+      "env_variable": "USE_TSHOCK",
+      "default_value": "true",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|in:true,false",
+      "field_type": "text"
+    },
+    {
+      "name": "Server Port",
+      "description": "The port to bind the server to.",
+      "env_variable": "SERVER_PORT",
+      "default_value": "7777",
+      "user_viewable": true,
+      "user_editable": false,
+      "rules": "required|numeric|min:1024|max:65535",
+      "field_type": "text"
+    },
+    {
+      "name": "Maximum Players",
+      "description": "The maximum number of players that can join the server.",
+      "env_variable": "MAX_PLAYERS",
+      "default_value": "8",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|numeric|min:1|max:255",
+      "field_type": "text"
+    },
+    {
+      "name": "World Name",
+      "description": "The name of the world file and the world itself.",
+      "env_variable": "WORLD_NAME",
+      "default_value": "PyroWorld",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|max:30",
+      "field_type": "text"
+    },
+    {
+      "name": "World Path",
+      "description": "Path to the world file. Will be created automatically if it doesn't exist.",
+      "env_variable": "WORLD_PATH",
+      "default_value": "worlds/PyroWorld.wld",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|max:100",
+      "field_type": "text"
+    },
+    {
+      "name": "World Size",
+      "description": "The size of the world. 1 = Small, 2 = Medium, 3 = Large",
+      "env_variable": "WORLD_SIZE",
+      "default_value": "2",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|numeric|in:1,2,3",
+      "field_type": "text"
+    },
+    {
+      "name": "World Difficulty",
+      "description": "The difficulty of the world. 0 = Classic, 1 = Expert, 2 = Master, 3 = Journey",
+      "env_variable": "DIFFICULTY",
+      "default_value": "0",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|numeric|in:0,1,2,3",
+      "field_type": "text"
+    },
+    {
+      "name": "World Seed",
+      "description": "The seed for world generation. Leave empty for random.",
+      "env_variable": "WORLD_SEED",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:20",
+      "field_type": "text"
+    },
+    {
+      "name": "Server Password",
+      "description": "The password required to join the server. Leave empty for no password.",
+      "env_variable": "SERVER_PASSWORD",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:20",
+      "field_type": "text"
+    },
+    {
+      "name": "Server MOTD",
+      "description": "The message of the day that appears when players join.",
+      "env_variable": "SERVER_MOTD",
+      "default_value": "Welcome to Pyro Terraria Server!",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|max:100",
+      "field_type": "text"
+    },
+    {
+      "name": "Language",
+      "description": "Server language. 1 = English, 2 = German, 3 = Italian, 4 = French, 5 = Spanish, 6 = Russian, 7 = Chinese, 8 = Portuguese, 9 = Polish",
+      "env_variable": "LANGUAGE",
+      "default_value": "1",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|numeric|in:1,2,3,4,5,6,7,8,9",
+      "field_type": "text"
+    }
+  ]
+}
