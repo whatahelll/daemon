@@ -1,58 +1,63 @@
 {
-  "_comment": "Terraria Dedicated Server - Corrigido",
+  "_comment": "Terraria Vanilla Server - Baseado no Egg Oficial",
   "meta": {
     "version": "PTDL_v2",
     "update_url": null
   },
   "exported_at": "2025-01-09T00:00:00+00:00",
   "uuid": "terraria",
-  "name": "Terraria",
+  "name": "Terraria Vanilla",
   "author": "support@pyro.host",
-  "description": "Terraria dedicated server with TShock mod support",
-  "features": [
-    "pid_limit"
-  ],
+  "description": "Dig, fight, explore, build! Nothing is impossible in this action-packed adventure game.",
+  "features": null,
   "docker_images": {
-    "Mono": "mono:latest",
-    "Terraria Game": "ghcr.io/pterodactyl/games:terraria"
+    "Debian": "ghcr.io/parkervcp/yolks:debian"
   },
   "file_denylist": [],
-  "startup": "./TerrariaServer.bin.x86_64 -config serverconfig.txt -port {{SERVER_PORT}} -maxplayers {{MAX_PLAYERS}} -world {{WORLD_PATH}} -worldname \"{{WORLD_NAME}}\" -password \"{{SERVER_PASSWORD}}\" -motd \"{{SERVER_MOTD}}\" -lang {{LANGUAGE}} -autocreate {{WORLD_SIZE}} -difficulty {{DIFFICULTY}} -seed \"{{WORLD_SEED}}\"",
+  "startup": "./TerrariaServer.bin.x86_64 -config serverconfig.txt",
   "config": {
     "files": {
       "serverconfig.txt": {
-        "parser": "file",
+        "parser": "properties",
         "find": {
-          "world": "{{WORLD_PATH}}",
+          "worldpath": "/home/container/saves/Worlds",
+          "worldname": "{{WORLD_NAME}}",
+          "world": "/home/container/saves/Worlds/{{WORLD_NAME}}.wld",
+          "difficulty": "{{WORLD_DIFFICULTY}}",
+          "autocreate": "{{WORLD_SIZE}}",
           "port": "{{SERVER_PORT}}",
           "maxplayers": "{{MAX_PLAYERS}}",
-          "password": "{{SERVER_PASSWORD}}",
           "motd": "{{SERVER_MOTD}}",
-          "worldname": "{{WORLD_NAME}}",
-          "autocreate": "{{WORLD_SIZE}}",
-          "difficulty": "{{DIFFICULTY}}",
           "seed": "{{WORLD_SEED}}",
-          "language": "{{LANGUAGE}}"
+          "password": "{{PASSWORD}}",
+          "npcstream": "{{NPCSTREAM}}"
         }
       }
     },
     "startup": {
-      "done": "Server started"
+      "done": "Type 'help' for a list of commands"
     },
-    "stop": "exit",
-    "logs": {
-      "custom": false,
-      "location": "ServerLog.txt"
-    }
+    "logs": {},
+    "stop": "exit"
   },
   "scripts": {
     "installation": {
-      "script": "#!/bin/bash\ncd /mnt/server\n\necho \"📥 Installing Terraria server...\"\n\n# Update packages\napt update\napt install -y curl unzip wget jq\n\n# Download TShock (latest stable)\necho \"📥 Downloading TShock for Terraria...\"\nTSHOCK_VERSION=\"5.2.0\"\nDOWNLOAD_URL=\"https://github.com/Pryaxis/TShock/releases/download/v${TSHOCK_VERSION}/TShock-${TSHOCK_VERSION}-linux-x64-Release.zip\"\n\necho \"🔗 Download URL: $DOWNLOAD_URL\"\ncurl -L -o tshock.zip \"$DOWNLOAD_URL\"\n\nif [ ! -f \"tshock.zip\" ]; then\n    echo \"❌ Failed to download TShock\"\n    exit 1\nfi\n\necho \"📦 Extracting TShock...\"\nunzip -o tshock.zip\nrm tshock.zip\n\n# Make executable\nchmod +x TerrariaServer.bin.x86_64 || chmod +x TShock.Server\n\n# Create default server config\necho \"⚙️ Creating server configuration...\"\ncat > serverconfig.txt << EOF\nworld={{WORLD_PATH}}\nport={{SERVER_PORT}}\nmaxplayers={{MAX_PLAYERS}}\npassword={{SERVER_PASSWORD}}\nmotd={{SERVER_MOTD}}\nworldname={{WORLD_NAME}}\nautocreate={{WORLD_SIZE}}\ndifficulty={{DIFFICULTY}}\nseed={{WORLD_SEED}}\nlanguage={{LANGUAGE}}\nsecure=1\nnoupnp=1\nEOF\n\n# Create worlds directory\nmkdir -p worlds\n\necho \"✅ Terraria TShock server installation completed!\"\necho \"🌍 World will be created automatically on first start\"\necho \"🎮 Server ready to start!\"\necho \"📊 Server will run on port ${SERVER_PORT}\"\necho \"👥 Max players: ${MAX_PLAYERS}\"\necho \"🌍 World: ${WORLD_NAME}\"",
-      "container": "ghcr.io/pterodactyl/installers:debian",
+      "script": "#!/bin/bash\n# Terraria Vanilla Installation Script\n#\n# Server Files: /mnt/server\n\necho \"📦 Installing Terraria server...\"\n\n## Install packages\napt update\napt install -y curl wget file unzip jq\n\nDOWNLOAD_LINK=invalid\n\nmkdir -p /mnt/server/\ncd /mnt/server/\n\necho \"🔍 Determining Terraria version to download...\"\n\nif [ \"${TERRARIA_VERSION}\" == \"latest\" ] || [ \"${TERRARIA_VERSION}\" == \"\" ] ; then\n    echo \"📥 Getting latest Terraria version...\"\n    V=$(curl -sSL https://terraria.org/api/get/dedicated-servers-names | jq -r .[] | head -1)\n    DOWNLOAD_LINK=\"https://terraria.org/api/download/pc-dedicated-server/${V}\"\n    echo \"📋 Latest version: ${V}\"\nelse\n    echo \"📥 Getting specific Terraria version: ${TERRARIA_VERSION}\"\n    CLEAN_VERSION=$(echo ${TERRARIA_VERSION} | sed 's/\\.//g')\n    DOWNLOAD_LINK=$(curl -sSL https://terraria.wiki.gg/wiki/Server#Downloads | grep '>Terraria Server ' | grep -Eoi '<a [^>]+>' | grep -Eo 'href=\"[^\"]+\"' | grep -Eo '(http|https)://[^\"]+' | grep \"${CLEAN_VERSION}\" | cut -d'?' -f1)\nfi \n\necho \"🔗 Download link: ${DOWNLOAD_LINK}\"\n\n## Validate download URL\nif [ ! -z \"${DOWNLOAD_LINK}\" ]; then \n    if curl --output /dev/null --silent --head --fail ${DOWNLOAD_LINK}; then\n        echo \"✅ Download link is valid\"\n    else        \n        echo \"❌ Download link is invalid, exiting\"\n        exit 2\n    fi\nelse\n    echo \"❌ Could not determine download link\"\n    exit 2\nfi\n\nCLEAN_VERSION=$(echo ${DOWNLOAD_LINK##*/} | cut -d'-' -f3 | cut -d'.' -f1)\n\necho \"📥 Downloading Terraria server files...\"\ncurl -sSL ${DOWNLOAD_LINK} -o ${DOWNLOAD_LINK##*/}\n\nif [ ! -f \"${DOWNLOAD_LINK##*/}\" ]; then\n    echo \"❌ Download failed\"\n    exit 1\nfi\n\necho \"📦 Extracting server files...\"\nunzip ${DOWNLOAD_LINK##*/}\n\necho \"📁 Moving files to correct location...\"\ncp -R ${CLEAN_VERSION}/Linux/* ./\nchmod +x TerrariaServer.bin.x86_64\n\necho \"🧹 Cleaning up temporary files...\"\nrm -rf ${CLEAN_VERSION} ${DOWNLOAD_LINK##*/}\n\necho \"⚙️ Generating default server configuration...\"\ncat <<EOF > serverconfig.txt\nworldpath=/home/container/saves/Worlds\nworldname={{WORLD_NAME}}\nworld=/home/container/saves/Worlds/{{WORLD_NAME}}.wld\ndifficulty={{WORLD_DIFFICULTY}}\nautocreate={{WORLD_SIZE}}\nport={{SERVER_PORT}}\nmaxplayers={{MAX_PLAYERS}}\nmotd={{SERVER_MOTD}}\nseed={{WORLD_SEED}}\npassword={{PASSWORD}}\nnpcstream={{NPCSTREAM}}\nEOF\n\necho \"📁 Creating worlds directory...\"\nmkdir -p /mnt/server/saves/Worlds\n\necho \"✅ Terraria server installation completed!\"\necho \"🎮 Server ready to start on port {{SERVER_PORT}}\"\necho \"👥 Max players: {{MAX_PLAYERS}}\"\necho \"🌍 World: {{WORLD_NAME}} (Size: {{WORLD_SIZE}}, Difficulty: {{WORLD_DIFFICULTY}})\"\n\nif [ -f \"TerrariaServer.bin.x86_64\" ]; then\n    echo \"✅ Server executable found and ready\"\nelse\n    echo \"❌ Warning: Server executable not found!\"\n    ls -la\nfi",
+      "container": "ghcr.io/parkervcp/installers:debian",
       "entrypoint": "bash"
     }
   },
   "variables": [
+    {
+      "name": "Terraria Version",
+      "description": "The version of Terraria server to install. Use 'latest' for the newest version or specify version like '1.4.4.9'",
+      "env_variable": "TERRARIA_VERSION",
+      "default_value": "latest",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|max:20",
+      "field_type": "text"
+    },
     {
       "name": "Server Port",
       "description": "The port to bind the server to.",
@@ -64,8 +69,18 @@
       "field_type": "text"
     },
     {
-      "name": "Maximum Players",
-      "description": "The maximum number of players that can join the server.",
+      "name": "World Name",
+      "description": "The name for the world file.",
+      "env_variable": "WORLD_NAME",
+      "default_value": "PyroWorld",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|max:20",
+      "field_type": "text"
+    },
+    {
+      "name": "Max Players",
+      "description": "The maximum number of players the server will hold.",
       "env_variable": "MAX_PLAYERS",
       "default_value": "8",
       "user_viewable": true,
@@ -74,28 +89,8 @@
       "field_type": "text"
     },
     {
-      "name": "World Name",
-      "description": "The name of the world file and the world itself.",
-      "env_variable": "WORLD_NAME",
-      "default_value": "PyroWorld",
-      "user_viewable": true,
-      "user_editable": true,
-      "rules": "required|string|max:30",
-      "field_type": "text"
-    },
-    {
-      "name": "World Path",
-      "description": "Path to the world file. Will be created automatically if it doesn't exist.",
-      "env_variable": "WORLD_PATH",
-      "default_value": "worlds/PyroWorld.wld",
-      "user_viewable": true,
-      "user_editable": true,
-      "rules": "required|string|max:100",
-      "field_type": "text"
-    },
-    {
       "name": "World Size",
-      "description": "The size of the world. 1 = Small, 2 = Medium, 3 = Large",
+      "description": "Defines the world size. 1 = Small, 2 = Medium, 3 = Large",
       "env_variable": "WORLD_SIZE",
       "default_value": "2",
       "user_viewable": true,
@@ -105,8 +100,8 @@
     },
     {
       "name": "World Difficulty",
-      "description": "The difficulty of the world. 0 = Classic, 1 = Expert, 2 = Master, 3 = Journey",
-      "env_variable": "DIFFICULTY",
+      "description": "World Difficulty. 0 = Classic, 1 = Expert, 2 = Master, 3 = Journey",
+      "env_variable": "WORLD_DIFFICULTY",
       "default_value": "0",
       "user_viewable": true,
       "user_editable": true,
@@ -114,8 +109,18 @@
       "field_type": "text"
     },
     {
+      "name": "Server MOTD",
+      "description": "Message of the Day displayed to players",
+      "env_variable": "SERVER_MOTD",
+      "default_value": "Welcome to Pyro Terraria Server!",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|max:128",
+      "field_type": "text"
+    },
+    {
       "name": "World Seed",
-      "description": "The seed for world generation. Leave empty for random.",
+      "description": "The seed to use when creating the world. Leave empty for random.",
       "env_variable": "WORLD_SEED",
       "default_value": "",
       "user_viewable": true,
@@ -125,8 +130,8 @@
     },
     {
       "name": "Server Password",
-      "description": "The password required to join the server. Leave empty for no password.",
-      "env_variable": "SERVER_PASSWORD",
+      "description": "Password required to join the server. Leave empty for no password.",
+      "env_variable": "PASSWORD",
       "default_value": "",
       "user_viewable": true,
       "user_editable": true,
@@ -134,23 +139,13 @@
       "field_type": "text"
     },
     {
-      "name": "Server MOTD",
-      "description": "The message of the day that appears when players join.",
-      "env_variable": "SERVER_MOTD",
-      "default_value": "Welcome to Pyro Terraria Server!",
+      "name": "NPC Stream",
+      "description": "Reduces enemy skipping but increases bandwidth usage. Lower numbers = less skipping, more data. 0 = off.",
+      "env_variable": "NPCSTREAM",
+      "default_value": "0",
       "user_viewable": true,
       "user_editable": true,
-      "rules": "required|string|max:100",
-      "field_type": "text"
-    },
-    {
-      "name": "Language",
-      "description": "Server language. 1 = English, 2 = German, 3 = Italian, 4 = French, 5 = Spanish, 6 = Russian, 7 = Chinese, 8 = Portuguese, 9 = Polish",
-      "env_variable": "LANGUAGE",
-      "default_value": "1",
-      "user_viewable": true,
-      "user_editable": true,
-      "rules": "required|numeric|in:1,2,3,4,5,6,7,8,9",
+      "rules": "required|int|between:0,60",
       "field_type": "text"
     }
   ]
