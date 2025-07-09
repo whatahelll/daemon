@@ -1,5 +1,4 @@
 {
-  "_comment": "Minecraft Vanilla Server Egg",
   "meta": {
     "version": "PTDL_v2",
     "update_url": null
@@ -66,7 +65,7 @@
   },
   "scripts": {
     "installation": {
-      "script": "#!/bin/bash\ncd /mnt/server\napt update\napt install -y curl jq\necho \"eula=${EULA}\" > eula.txt\nif [ \"${MINECRAFT_VERSION}\" == \"latest\" ]; then\n    echo \"Downloading latest Minecraft server...\"\n    LATEST_VERSION=$(curl -s https://launchermeta.mojang.com/mc/game/version_manifest.json | jq -r '.latest.release')\n    VERSION_URL=$(curl -s https://launchermeta.mojang.com/mc/game/version_manifest.json | jq -r \".versions[] | select(.id==\\\"$LATEST_VERSION\\\") | .url\")\n    DOWNLOAD_URL=$(curl -s $VERSION_URL | jq -r '.downloads.server.url')\nelse\n    echo \"Downloading Minecraft server version ${MINECRAFT_VERSION}...\"\n    VERSION_URL=$(curl -s https://launchermeta.mojang.com/mc/game/version_manifest.json | jq -r \".versions[] | select(.id==\\\"${MINECRAFT_VERSION}\\\") | .url\")\n    if [ \"$VERSION_URL\" == \"null\" ]; then\n        echo \"Version ${MINECRAFT_VERSION} not found!\"\n        exit 1\n    fi\n    DOWNLOAD_URL=$(curl -s $VERSION_URL | jq -r '.downloads.server.url')\nfi\necho \"Downloading from: $DOWNLOAD_URL\"\nwget -O ${SERVER_JARFILE} $DOWNLOAD_URL\nif [ ! -f ${SERVER_JARFILE} ]; then\n    echo \"Failed to download server jar!\"\n    exit 1\nfi\necho \"Minecraft server installation completed!\"",
+      "script": "#!/bin/bash\ncd /mnt/server\napt update\napt install -y curl jq\necho \"eula=${EULA}\" > eula.txt\n\nif [ \"${MINECRAFT_VERSION}\" == \"latest\" ]; then\n    echo \"Downloading latest Minecraft server...\"\n    LATEST_VERSION=$(curl -s https://launchermeta.mojang.com/mc/game/version_manifest.json | jq -r '.latest.release')\n    VERSION_URL=$(curl -s https://launchermeta.mojang.com/mc/game/version_manifest.json | jq -r \".versions[] | select(.id==\\\"$LATEST_VERSION\\\") | .url\")\n    DOWNLOAD_URL=$(curl -s $VERSION_URL | jq -r '.downloads.server.url')\nelse\n    echo \"Downloading Minecraft server version ${MINECRAFT_VERSION}...\"\n    VERSION_URL=$(curl -s https://launchermeta.mojang.com/mc/game/version_manifest.json | jq -r \".versions[] | select(.id==\\\"${MINECRAFT_VERSION}\\\") | .url\")\n    if [ \"$VERSION_URL\" == \"null\" ]; then\n        echo \"Version ${MINECRAFT_VERSION} not found!\"\n        exit 1\n    fi\n    DOWNLOAD_URL=$(curl -s $VERSION_URL | jq -r '.downloads.server.url')\nfi\n\necho \"Downloading from: $DOWNLOAD_URL\"\nwget -O ${SERVER_JARFILE} $DOWNLOAD_URL\n\nif [ ! -f ${SERVER_JARFILE} ]; then\n    echo \"Failed to download server jar!\"\n    exit 1\nfi\n\necho \"Minecraft server installation completed!\"",
       "container": "ghcr.io/pterodactyl/installers:debian",
       "entrypoint": "bash"
     }
